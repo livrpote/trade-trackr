@@ -25,8 +25,7 @@ while True:
     if status == 'SUCCEEDED':
         break
     elif status == 'FAILED':
-        print(f"Job failed: {result.get('StatusMessage', 'Unknown error')}")
-        exit(1)
+        raise RuntimeError(f"Textract job failed: {result.get('StatusMessage', 'Unknown error occurred retrieving document analysis')}")
     time.sleep(2)
 
 # Collect ALL blocks across all pages
@@ -56,6 +55,9 @@ print(f"Total Blocks Retrieved: {len(all_blocks)}")
 # Find tables
 tables = [b for b in all_blocks if b['BlockType'] == 'TABLE']
 print(f"✓ Found {len(tables)} tables")
+
+for block in all_blocks:
+    if block['BlockType'] == 'LINE' AND block['Text'] == 'AMAT':
 
 # Cleanup
 s3.delete_object(Bucket=BUCKET, Key='temp.pdf')
