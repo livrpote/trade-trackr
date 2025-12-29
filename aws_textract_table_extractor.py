@@ -2,13 +2,18 @@ import boto3
 import time
 import json
 import pandas as pd
+import csv
 from typing import List, Dict
 
 
 class TextractTableExtractor:
-    """Extract tables from PDFs using AWS Textract."""
+    """
+    Extract tables from PDFs using AWS Textract.
+    Data model returned by Textract is a DAG.
+    """
     
     def __init__(self, region_name='us-east-2'):
+        # Store clients on self to reuse in other methods
         self.textract = boto3.client('textract', region_name=region_name)
         self.s3 = boto3.client('s3', region_name=region_name)
         self.region = region_name
@@ -16,6 +21,8 @@ class TextractTableExtractor:
     def extract_tables_from_pdf(self, pdf_path: str, bucket: str, output_prefix: str = 'table') -> List[str]:
         """
         Extract tables from PDF and save as CSV files.
+        Allows caller to lazily load CSV files into Pandas 
+        Dataframes for processing. 
         
         Args:
             pdf_path: Local path to PDF file
@@ -97,6 +104,9 @@ class TextractTableExtractor:
             else:
                 result = self.textract.get_document_analysis(JobId=job_id)
             
+            # What's the memory considerationr of storing all blocks in memory?
+            # For very large documents, this could Out of Memory Errors
+            # Solutions: Stream blocks to disk, process incrementally, use generators?
             all_blocks.extend(result['Blocks'])
             next_token = result.get('NextToken')
             
@@ -112,7 +122,7 @@ class TextractTableExtractor:
         """Generate CSV files from Textract blocks."""
         print("\n📊 Processing tables...")
         
-        # Build blocks map
+        # Build blocks map (id: block)
         blocks_map = {block['Id']: block for block in blocks}
         
         # Find all TABLE blocks
@@ -208,15 +218,14 @@ class TextractTableExtractor:
     
     def _save_table_as_csv(self, df: pd.DataFrame, filename: str):
         """Save DataFrame as CSV matching AWS UI format."""
-        # Add ' prefix to all cells to match UI format
-        df_quoted = df.map(lambda x: f"'{x}")
+        df_quoted = df.map(lambda x: f"{x}")
         
         # Save with proper quoting
         df_quoted.to_csv(
             filename,
             index=False,
             header=False,
-            quoting=1,  # QUOTE_ALL
+            quoting=csv.QUOTE_NONNUMERIC # Only quote non-numeric fields
         )
         
         print(f"    ✓ Saved {filename}")

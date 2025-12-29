@@ -7,6 +7,7 @@ Complete IBKR Statement Parser using AWS Textract
 """
 
 from aws_textract_table_extractor import TextractTableExtractor
+import pandas
 
 # Configuration
 BUCKET = 'ibkr-statements'
@@ -23,9 +24,7 @@ try:
         output_prefix=OUTPUT_PREFIX
     )
     
-    print("\n" + "="*80)
-    print("✅ SUCCESS")
-    print("="*80)
+    print(f"\n{'-'*80}✅ SUCCESS{'-'*80}")
     print(f"Generated {len(output_files)} CSV files:")
     for f in output_files:
         print(f"  • {f}")
@@ -37,3 +36,20 @@ except Exception as e:
     print(f"{type(e).__name__}: {e}")
     import traceback
     traceback.print_exc()
+
+# Read tables into Pandas DataFrames
+
+## Cleaning to get Realized P&L Totals
+
+# 1. Find column index with header "Unrealized" and drop all columns including & after it
+
+# 2. Check if 1st row only contains 1 non-blank value "Realized" and if yes drop row
+
+# 3. Find column index with Header "Symbol" and "Total", and drop all other columns
+
+
+# 3. In column 0, find row index with value "Stocks" -> start index of stocks table
+# 4. Find row index with value "Total Stocks" -> end index of stocks table
+# 5. Extract stocks table as separate DataFrame
+
+# 6. Find row index with value "Equity and Index Options"
