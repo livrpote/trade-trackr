@@ -27,8 +27,51 @@ def load_and_normalize_csv(filepath: str) -> pd.DataFrame:
     cols_to_keep = [c for c in df.columns if c != '' and c != 'nan']
     df = df[cols_to_keep]
     # Reset index
-    df = df.reset_index(drop=True)  
-    return df
+    df = df.reset_index(drop=True) 
+
+    # 6. Filter Aggregate Rows
+    df = _filter_aggregate_rows(df)
+    
+    return df.reset_index(drop=True)
+
+def _filter_aggregate_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Removes rows that are summary/aggregate lines.
+    Criteria: Symbol starts with "Total" AND Code is empty AND Prices are empty.
+    """
+    # Normalize all columns to str so that we can use string method .startswith() below
+    symbol = df['Symbol'].fillna('').astype(str)
+    code = df['Code'].fillna('').astype(str)
+    t_price = df['T. Price'].fillna('').astype(str).str.strip()
+    c_price = df['C. Price'].fillna('').astype(str).str.strip()
+    
+    # Create Mask
+    is_aggregate = (
+        symbol.str.startswith('Total') & 
+        (code == '') & 
+        (t_price == '') & 
+        (c_price == '')
+    )
+    
+    return df[~is_aggregate]
+
+def calculate_net_cash(row):
+    """
+    Calculates Net Cash = Proceeds + Comm/Fee
+    Expects operands to be floats. Pre-processing required if they are strings.
+    """
+    return row['Proceeds'] + row['Comm/Fee']
+
+def assign_buy_sell_action(qty):
+    """
+    Maps Quantity to Action:
+    Negative -> SELL
+    Positive -> BUY
+    """
+    if qty < 0:
+        return 'SELL'
+    else:
+        return 'BUY'
 
 def parse_ibkr_symbol(symbol: str) -> Dict:
     """
@@ -69,8 +112,71 @@ def classify_action(code):
     code = str(code).upper()  
     if 'O' in code: return 'OPEN' # Opening a new position 
     # All these result in closing a position
-    if any(x in code for x in ['C', 'A', 'EP', 'EX']): return 'CLOSE'
+    if any(x in code for x in ['C', 'A', 'EP', 'EX']): return 'CLOSED'
     return 'UNKNOWN'
+
+
+# 2. Main Execution
+if __name__ == "__main__":
+    # 1. Load Data
+    all_files = glob.glob('output/ibkr_table-*.csv')
+    df_list = []
+
+    print(f"Found {len(all_files)} files to process.")
+    for filename in all_files:
+        try:
+            normalized_df = load_and_normalize_csv(filename)
+            df_list.append(normalized_df)
+        except Exception as e:
+            print(f"Skipping {filename}: {e}")
+            
+    if df_list:
+        full_df = pd.concat(df_list, ignore_index=True)
+    else:
+        full_df = pd.DataFrame()
+
+    # 2. Main Processing Pipeline
+    if not full_df.empty:
+        # Work on a copy
+        clean_df = full_df.copy()
+
+        # A. Clean Numeric Columns
+        # Remove commas and convert to numeric. Coerce errors to NaN.
+        numeric_cols = ['Quantity', 'Proceeds', 'Comm/Fee', 'Strike'] 
+        for col in numeric_cols:
+            if col in clean_df.columns:
+                clean_df[col] = clean_df[col].astype(str).str.replace(',', '').apply(pd.to_numeric, errors='coerce')
+
+        # B. Parse Symbol -> Expand to [Symbol, Expiry, Strike, Instrument]
+        print("Parsing Symbols...")
+        parsed_data = clean_df['Symbol'].apply(parse_ibkr_symbol).apply(pd.Series)
+        
+        # Drop old Symbol, join new columns
+        # We drop 'Symbol' from clean_df first to avoid duplicates, then concat puts new Symbol at front
+        clean_df = clean_df.drop(columns=['Symbol'])
+        clean_df = pd.concat([parsed_data, clean_df], axis=1)
+
+        clean_df['Status'] = clean_df['Code'].apply(classify_action)
+        clean_df['Action'] = clean_df['Quantity'].apply(assign_buy_sell_action)
+        clean_df['Net Cash'] = clean_df.apply(calculate_net_cash, axis=1)
+
+        desired_order = [
+            'Date/Time', 'Symbol', 'Action', 'Status', 'Quantity', 
+            'Net Cash'  , 'Strike', 'Expiry', 'Instrument'
+        ]
+        final_cols = [c for c in desired_order if c in clean_df.columns]
+        final_view = clean_df[final_cols]
+        final_view = final_view.rename(columns={'Date/Time': 'Date', 'Quantity': 'Qty'})        
+        if 'Date' in final_view.columns:
+            final_view['Date'] = pd.to_datetime(final_view['Date'], errors='coerce') # Convert text into Date objects, and bad values into NaT
+            final_view = final_view.dropna(subset=['Date']) # Remove any rows where Date became NaT (Not a Time)
+            final_view['Date'] = final_view['Date'].dt.date # Drop time component
+            final_view = final_view.sort_values(by=['Date', 'Symbol'])
+
+        # E. Save Output
+        output_path = 'master_ledger.csv'
+        final_view.to_csv(output_path, index=False)
+        print(f"\nSuccessfully saved Master Ledger to {output_path}")
 
 
     

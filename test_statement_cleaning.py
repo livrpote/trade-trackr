@@ -63,3 +63,7 @@ def test_load_and_normalize_real_csvs(filepath):
     # (A common bug where the header isn't promoted correctly)
     first_symbol = str(df.iloc[0]['Symbol'])
     assert first_symbol != "Symbol", f"Header row was not correctly promoted in {filepath}"
+    
+    # 3. Check if any row in 'Symbol' column starts with "Total"
+    has_total_rows = df['Symbol'].astype(str).str.startswith('Total').any()
+    assert not has_total_rows, f"Found 'Total' summary rows in {filepath}, should have been filtered out"
