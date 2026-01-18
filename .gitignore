@@ -1,0 +1,5 @@
+api_response.json
+__pycache__/
+.DS_Store
+output/
+*.pdf

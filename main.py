@@ -11,7 +11,7 @@ import pandas
 
 # Configuration
 BUCKET = 'ibkr-statements'
-PDF_PATH = '/Users/personal/Desktop/Projects/ibkr-statement-parser/IBKR_Personal_Realised_P&L_FY2025.pdf'
+PDF_PATH = '/Users/personal/Desktop/Projects/ibkr-statement-parser/IBKR_Nov_2025_Trades.pdf'
 OUTPUT_PREFIX = 'output/ibkr_table'
 
 # Extract tables

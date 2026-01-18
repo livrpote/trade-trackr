@@ -149,6 +149,7 @@ if __name__ == "__main__":
     
     # Merge the dataframes
     final_combined_df = pd.concat(all_dfs, ignore_index=True)
+    final_combined_df.to_csv('output/ibkr_table-combined.csv', index=False)
     
     print("\n--- Extracted Summaries ---")
     for k, v in all_summaries.items():
