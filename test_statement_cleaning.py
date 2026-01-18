@@ -3,7 +3,7 @@ import pandas as pd
 import glob
 import os
 from io import StringIO
-from trades_cleaning import classify_action, parse_ibkr_description, load_and_normalize_csv
+from trades_cleaning import classify_action, parse_ibkr_symbol, load_and_normalize_csv
 
 # ==========================================
 # 1. Existing Tests (Legacy)
@@ -27,7 +27,8 @@ def test_classify_action(input_code, expected_action):
     ("AMAT", "AMAT", 0.0, None, "Stock"),
 ])
 def test_parse_ibkr_symbol(input_string, expected_symbol, expected_strike, expected_expiry, expected_instrument):
-    result = parse_ibkr_description(input_string)
+    result = parse_ibkr_symbol(input_string)
+    print(result)
     assert result['Symbol'] == expected_symbol
     assert result['Strike'] == expected_strike
     assert result['Expiry'] == expected_expiry
@@ -46,7 +47,6 @@ def test_load_and_normalize_real_csvs(filepath):
     Runs the loading logic against every real file in output/ 
     to ensure it works on actual data.
     """
-    print(f"Testing real file: {filepath}")
     
     # 1. Run the function
     df = load_and_normalize_csv(filepath)
